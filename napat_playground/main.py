@@ -2,24 +2,21 @@ import cv2
 import numpy as np
 from scipy.io import loadmat
 
-
 # Load stereo parameters from .mat file
-mat_data = loadmat('stereoParams.mat')
+mat_data = loadmat('processedStereoParams.mat')
 
 # Print available keys
 print(mat_data.keys())
 
-stereo_params = mat_data['stereoParams'][0,0]
+# Extract the stereo parameters from the loaded data
+left_cam_matrix = mat_data['LeftCam']['IntrinsicMatrix'].T  # Transpose because MATLAB uses column-major order
+right_cam_matrix = mat_data['RightCam']['IntrinsicMatrix'].T
 
-left_cam_matrix = stereo_params['CameraParameters1'][0,0]['IntrinsicMatrix'].T  # Transpose because MATLAB uses column-major order
-right_cam_matrix = stereo_params['CameraParameters2'][0,0]['IntrinsicMatrix'].T
+left_dist_coeffs = mat_data['LeftCam']['RadialDistortion'][:2]
+right_dist_coeffs = mat_data['RightCam']['RadialDistortion'][:2]
 
-left_dist_coeffs = stereo_params['CameraParameters1'][0,0]['RadialDistortion'][0,:2]
-right_dist_coeffs = stereo_params['CameraParameters2'][0,0]['RadialDistortion'][0,:2]
-
-R = stereo_params['RotationOfCamera2']
-T = stereo_params['TranslationOfCamera2']
-
+R = mat_data['RotationOfCamera2']
+T = mat_data['TranslationOfCamera2']
 
 # Create StereoSGBM object
 window_size = 3
@@ -37,8 +34,8 @@ stereo = cv2.StereoSGBM_create(
     speckleRange = 32
 )
 
-cap1 = cv2.VideoCapture(0)  # Assuming left camera is device 0
-cap2 = cv2.VideoCapture(1)  # Assuming right camera is device 1
+cap1 = cv2.VideoCapture(1)  # Assuming left camera is device 1
+cap2 = cv2.VideoCapture(2)  # Assuming right camera is device 2
 
 while True:
     ret1, frame1 = cap1.read()
@@ -52,7 +49,10 @@ while True:
 
     disparity = stereo.compute(gray1, gray2).astype(np.float32) / 16.0
 
-    cv2.imshow('Disparity', (disparity-min_disp)/num_disp)
+    # Display the images
+    cv2.imshow('Left Image', gray1)
+    cv2.imshow('Right Image', gray2)
+    cv2.imshow('Disparity Map', (disparity-min_disp)/num_disp)
     
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
