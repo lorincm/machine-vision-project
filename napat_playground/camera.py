@@ -1,7 +1,7 @@
 import cv2
 import time
 
-def capture_on_spacebar(cam1_id=0, cam2_id=2, base_path1='./calibration_pic/right_', base_path2='./calibration_pic/left_', ext='.jpg'):
+def capture_on_spacebar(cam1_id=0, cam2_id=2, base_path1='./calibration_pic/right/right_', base_path2='./calibration_pic/left/left_', ext='.jpg'):
     # Open the cameras
     cam1 = cv2.VideoCapture(cam1_id) 
     cam2 = cv2.VideoCapture(cam2_id) 
