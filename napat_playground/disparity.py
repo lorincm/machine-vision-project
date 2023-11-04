@@ -34,7 +34,7 @@ def depth_map(imgL, imgR):
     displ = np.int16(displ)
     dispr = np.int16(dispr)
     filteredImg = wls_filter.filter(displ, imgL, None, dispr)  # important to put "imgL" here!!!
-    filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX);
+    filteredImg = cv2.normalize(src=filteredImg, dst=filteredImg, beta=0, alpha=255, norm_type=cv2.NORM_MINMAX)
     filteredImg = np.uint8(filteredImg)
 
     return filteredImg
