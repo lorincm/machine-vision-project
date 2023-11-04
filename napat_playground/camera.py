@@ -2,22 +2,36 @@ import cv2
 import time
 
 def capture_on_spacebar(cam1_id=0, cam2_id=2, base_path1='./calibration_pic/right/right_', base_path2='./calibration_pic/left/left_', ext='.jpg'):
+    
+    ## FOR CAMERA FINDING
+    target_resolution = (1920, 1080)
+    opened_cams = []
+    found_indices = []
+
     # Open the cameras
-    cam1 = cv2.VideoCapture(cam1_id) 
-    cam2 = cv2.VideoCapture(cam2_id) 
+    for i in range(3):
+        cam = cv2.VideoCapture(i)
+        if cam.isOpened():
+            ret, frame = cam.read()
+            if ret and frame.shape[1] == target_resolution[0] and frame.shape[0] == target_resolution[1]:
+                found_indices.append(i)
+                opened_cams.append(cam)
+                if len(opened_cams) == 2:  # Break if we found both cameras
+                    break
+            else:
+                cam.release()
 
-
-    # Check if the cameras are opened successfully
-    if not (cam1.isOpened() and cam2.isOpened()):
-        print("Error: Unable to open cameras.")
-        return
-
+    camL, camR = opened_cams
     counter = 0
 
     while True:
+
+        camL.grab()
+        camR.grab()
+
         # Read from the cameras
-        ret1, frame1 = cam1.read()
-        ret2, frame2 = cam2.read()
+        ret1, frame1 = camL.retrieve()
+        ret2, frame2 = camR.retrieve()
 
         # Display the frames
         cv2.imshow('Camera 1 RIGHT', frame1)
@@ -41,8 +55,8 @@ def capture_on_spacebar(cam1_id=0, cam2_id=2, base_path1='./calibration_pic/righ
 
     # Close the windows and cameras
     cv2.destroyAllWindows()
-    cam1.release()
-    cam2.release()
+    camL.release()
+    camR.release()
 
 if __name__ == '__main__':
     capture_on_spacebar()

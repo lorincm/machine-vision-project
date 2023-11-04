@@ -3,8 +3,8 @@ import cv2
 import glob
 
 # Chessboard dimensions and square size (in meters)
-chessboard_size = (5, 5)  # Number of corners
-square_size = 0.033  # e.g., 25 mm or 0.025 m
+chessboard_size = (4, 5)  # Number of corners
+square_size = 0.030  # e.g., 25 mm or 0.025 m
 
 # Prepare object points with actual square size
 objp = np.zeros((chessboard_size[1] * chessboard_size[0], 3), np.float32)
@@ -32,18 +32,19 @@ for imgL, imgR in zip(images_left, images_right):
     ret1, corners1 = cv2.findChessboardCorners(gray1, chessboard_size, None)
     ret2, corners2 = cv2.findChessboardCorners(gray2, chessboard_size, None)
 
-    if ret1:
-        cv2.drawChessboardCorners(img1, chessboard_size, corners1, ret1)
-        cv2.imshow('Detected Corners Left', img1)
-        cv2.waitKey(0)
+    # if ret1:
+    #     cv2.drawChessboardCorners(img1, chessboard_size, corners1, ret1)
+    #     cv2.imshow('Detected Corners Left', img1)
+    #     cv2.waitKey(0)
 
-    if ret2:
-        cv2.drawChessboardCorners(img2, chessboard_size, corners2, ret2)
-        cv2.imshow('Detected Corners Right', img2)
-        cv2.waitKey(0)
+    # if ret2:
+    #     cv2.drawChessboardCorners(img2, chessboard_size, corners2, ret2)
+    #     cv2.imshow('Detected Corners Right', img2)
+    #     cv2.waitKey(0)
 
 
     if ret1 and ret2:
+        print("FOUND")
         objpoints.append(objp)
 
         refinedCorners1 = cv2.cornerSubPix(gray1, corners1, (11,11), (-1,-1), criteria)
