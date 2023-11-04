@@ -150,6 +150,20 @@ def depth_estimation_mouse_callback(event, x, y, flags, param):
             # Refresh the display
             cv2.imshow(window_name, combined)
 
+def overlay_guidelines(frameL):
+    guidelines = [
+        ("'o' - Object Detection", (10, frameL.shape[0] - 150)),
+        ("'d' - Depth Estimation", (10, frameL.shape[0] - 120)),
+        ("'b' - Both", (10, frameL.shape[0] - 90)),
+        ("'s' - Swap Cameras", (10, frameL.shape[0] - 60)),
+        ("'x' - Exit", (10, frameL.shape[0] - 30))
+    ]
+
+    for text, position in guidelines:
+        cv2.putText(frameL, text, position, cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+    return frameL
+
 
 if __name__ == '__main__':
 
@@ -167,6 +181,7 @@ if __name__ == '__main__':
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
 
     frameL, frameR = stereo_camera.get_frames()
+
     frameL_with_detections = None
     frameR_with_detections = None
 
@@ -183,6 +198,7 @@ if __name__ == '__main__':
 
         # Get frames from camera
         frameL, frameR = stereo_camera.get_frames()
+        frameL = overlay_guidelines(frameL)
 
         add_text(frameR, "Cam Right", (frameR.shape[1] // 4, 30))
         add_text(frameL, "Cam Left", (frameL.shape[1] // 4, 30))
@@ -214,7 +230,6 @@ if __name__ == '__main__':
             exit()
 
         elif key == ord('s'):
-            print("SWAP")
             stereo_camera.swap_cameras()
 
         ## OBJECT DETECTION ONLY
