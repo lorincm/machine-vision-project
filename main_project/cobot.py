@@ -80,7 +80,7 @@ class Cobot():
     def map_camera_to_robot(self,x_cam, y_cam):
         # Robot bounds
         robot_left, robot_right = 75, -25
-        robot_bottom, robot_top = 100, 200
+        robot_bottom, robot_top = 100, 210
         
         ## OPPOSITE
         # robot_left, robot_right = -75, 75
