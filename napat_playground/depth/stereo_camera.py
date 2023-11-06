@@ -9,7 +9,7 @@ class StereoCamera:
         self.camera_opened = False
         
         print("Loading Calibration data")
-        self.calib_path = "./calibration/03-11-23-23-03-rms-2.91-zed-0-ximea-0"
+        self.calib_path = "./calibration/real"
         os.chdir(self.calib_path)
         self.mapL1 = np.load('mapL1.npy')
         self.mapL2 = np.load('mapL2.npy')

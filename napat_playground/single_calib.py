@@ -4,7 +4,7 @@ import glob
 
 # termination criteria
 criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-chessboard_size = (9, 6)  # Number of corners
+chessboard_size = (4, 3)  # Number of corners
 
 # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
 objp = np.zeros((chessboard_size[1] * chessboard_size[0], 3), np.float32)
@@ -13,7 +13,7 @@ objp[:, :2] = np.mgrid[0:chessboard_size[0], 0:chessboard_size[1]].T.reshape(-1,
 # Arrays to store object points and image points from all the images.
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
-images = sorted(glob.glob("./calibration_pic/example/*.jpg"))
+images = sorted(glob.glob("./calibration_pic/left/*.jpg"))
 
 for fname in images:
     img = cv.imread(fname)

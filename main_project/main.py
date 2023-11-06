@@ -32,7 +32,6 @@ def init_hitnet():
                           camera_config=CameraConfig(focal_length, baseline))
     return hitnet_depth
 
-
 def object_detection(object_detection_model, frameL):
 
     COCO_INSTANCE_CATEGORY_NAMES = [
@@ -207,7 +206,6 @@ def overlay_depth_on_detections(depth_frame, disparity_map, detections):
 
     return depth_frame, updated_detections
 
-
 def object_detection_mouse_callback(event, x, y, flags, param):
     # Check for left mouse button click event
     if event == cv2.EVENT_LBUTTONDOWN:
@@ -233,6 +231,27 @@ def generate_grasping_overlay(frame, total_objects, current_object, status, coor
 
     return overlay_frame
 
+def aruco_detection(frame,aruco_dictionary,aruco_parameters):
+
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+    corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dictionary, parameters=aruco_parameters)
+
+    center_coordinates = []
+
+    if len(corners) > 0:
+
+        cv2.aruco.drawDetectedMarkers(frame, corners, ids)
+
+        for corner in corners:
+            x_center = int((corner[0][0][0] + corner[0][1][0] + corner[0][2][0] + corner[0][3][0]) / 4)
+            y_center = int((corner[0][0][1] + corner[0][1][1] + corner[0][2][1] + corner[0][3][1]) / 4)
+            
+            center_coordinates.append((x_center,y_center))
+            # Drawing the center point
+            cv2.circle(frame, (x_center, y_center), 10, (0, 255, 0), -1)  # 5 is the radius, (0, 255, 0) is the color
+
+    return frame, center_coordinates
 
 
 if __name__ == '__main__':
@@ -245,7 +264,14 @@ if __name__ == '__main__':
     object_detection_model.eval()
 
     print("Init COBOT")
-    cobot = Cobot("/dev/tty.usbserial-0252F407")
+    cobot = Cobot("/dev/tty.usbserial-54790107521")
+
+    print("Init Aruco")
+    # Load the predefined dictionary
+    aruco_dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+
+    # Initialize the detector parameters using default values
+    aruco_parameters = cv2.aruco.DetectorParameters_create()
 
     checking_process = True
 
@@ -350,7 +376,12 @@ if __name__ == '__main__':
         depth_estimation_frame, object_detection_result = overlay_depth_on_detections(
             depth_estimation_frame, disparity_map, object_detection_result)
 
-        combined = np.vstack((object_detection_frame, depth_estimation_frame))
+        # Aruco
+        aruco_result,aruco_coord = aruco_detection(object_detection_frame, aruco_dictionary, aruco_parameters)
+        cobot.set_aruco_coord(aruco_coord)
+        print(f"aruco_coord: {aruco_coord}")
+
+        combined = np.vstack((aruco_result, depth_estimation_frame))
 
         cv2.imshow(window_name, combined)
         cv2.waitKey(0)

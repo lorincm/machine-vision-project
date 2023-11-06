@@ -9,6 +9,7 @@ class Cobot():
         self.id = id
         self.mc = MyCobot(id, 115200)
         self.MODE = 0
+        self.aruco_coord = [(900,870),(350,1400)]
 
         self.POS_LIST = {
             "left_back_corner":
@@ -41,6 +42,9 @@ class Cobot():
         }
 
         self.init()
+    
+    def set_aruco_coord(self,aruco_coord):
+        self.aruco_coord = aruco_coord
 
     def pump_on(self):
         self.mc.set_basic_output(2, 0)
@@ -75,16 +79,16 @@ class Cobot():
 
     def map_camera_to_robot(self,x_cam, y_cam):
         # Robot bounds
-        robot_left, robot_right = 75, -75
-        robot_bottom, robot_top = 0, 225
+        robot_left, robot_right = 75, -25
+        robot_bottom, robot_top = 100, 200
         
         ## OPPOSITE
         # robot_left, robot_right = -75, 75
         # robot_bottom, robot_top = 225, 0
 
         # Camera ROI bounds
-        camera_left, camera_right = 750, 1350
-        camera_top, camera_bottom = 430, 930
+        camera_left, camera_right = self.aruco_coord[0][0], self.aruco_coord[1][0]
+        camera_top, camera_bottom = self.aruco_coord[1][1], self.aruco_coord[0][1]
 
         # Calculate scaling factors
         scale_x = (robot_right - robot_left) / (camera_right - camera_left)
@@ -117,7 +121,7 @@ class Cobot():
         self.mc.send_coords([y_robot, x_robot, 100, -180, 0, 0], 40, self.MODE)
         time.sleep(6)
         print("UP")
-        self.mc.send_coords([y_robot, x_robot, 180, -180, 0, 0], 40, self.MODE)
+        self.mc.send_coords([y_robot, x_robot, 240, -180, 0, 0], 40, self.MODE)
         time.sleep(2)
 
         
