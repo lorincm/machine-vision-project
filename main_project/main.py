@@ -101,8 +101,8 @@ def object_detection(object_detection_model, frameL):
     position = (10, 30)
     cv2.putText(frameL_with_detections, text, position,
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-
-    return frameL_with_detections, detection_result
+    
+    return frameL_with_detections, detection_result #label, x, y, z
 
 
 def add_text(img, text, position):
