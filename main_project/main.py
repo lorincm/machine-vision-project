@@ -2,6 +2,9 @@ import cv2
 import tensorflow as tf
 import numpy as np
 import time as time
+from ultralytics import YOLO
+from PIL import Image
+import matplotlib.pyplot as plt
 from stereo_camera import *
 from hitnet import HitNet, ModelType, draw_disparity, draw_depth, CameraConfig, load_img
 from torchvision.models.detection import fasterrcnn_resnet50_fpn
