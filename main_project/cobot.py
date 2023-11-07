@@ -9,7 +9,7 @@ class Cobot():
         self.id = id
         self.mc = MyCobot(id, 115200)
         self.MODE = 0
-        self.aruco_coord = [(900,870),(350,1400)]
+        self.aruco_coord = [(879, 936), (1289, 534)]
 
         self.POS_LIST = {
             "left_back_corner":
