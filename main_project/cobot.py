@@ -115,7 +115,7 @@ class Cobot():
         print(f"Grasping object  at ({x_robot}, {y_robot})")
         self.pump_on()
         print("UP")
-        self.mc.send_coords([y_robot, x_robot, 180, -180, 0, 0], 40, self.MODE)
+        self.mc.send_coords([y_robot, x_robot, 200, -180, 0, 0], 40, self.MODE)
         time.sleep(4)
         print("DOWN")
         self.mc.send_coords([y_robot, x_robot, 100, -180, 0, 0], 40, self.MODE)

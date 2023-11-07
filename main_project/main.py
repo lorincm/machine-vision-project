@@ -516,6 +516,16 @@ if __name__ == '__main__':
         cv2.imshow(window_name, combined)
         cv2.waitKey(0)
 
+        # Start the event loop
+        key = cv2.waitKey(40) & 0xFF
+
+        # Loop control
+        if key == ord(' '):
+            pass
+
+        elif key == ord('x'):
+            exit()
+
         robot_process = False
         # Number of objects to grasp
         total_objects = len(object_detection_result)
