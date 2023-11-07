@@ -35,6 +35,20 @@ def init_hitnet():
                           camera_config=CameraConfig(focal_length, baseline))
     return hitnet_depth
 
+
+def init_sgbm():
+    # Call OpenCV passive stereo algorithms
+    stereo = cv2.StereoSGBM_create(
+        minDisparity=10, numDisparities=85, blockSize=11)
+
+    lmbda = 8000
+    sigma = 1.5
+    wls_filter = cv2.ximgproc.createDisparityWLSFilter(stereo)
+    wls_filter.setLambda(lmbda)
+    wls_filter.setSigmaColor(sigma)
+    return stereo, wls_filter
+
+
 def object_detection(object_detection_model, frameL):
 
     COCO_INSTANCE_CATEGORY_NAMES = [
@@ -113,14 +127,68 @@ def add_text(img, text, position):
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
 
-def depth_estimation(hitnet_depth, frameL, frameR):
+def disparity_to_depth(disparity_map):
+
+    f = 100
+    B = 0.06
+
+    # To prevent division by zero
+    valid_disparity = disparity_map.copy()
+    # replace zeros with a small value
+    valid_disparity[valid_disparity == 0] = 0.01
+
+    depth_map = f * B / valid_disparity
+    return depth_map
+
+
+def depth_estimation(hitnet_depth, stereo, wls_filter, frameL, frameR, method="hitnet"):
     # Start time
     start_time = time.time()
 
-    # Get the depth map from the Hitnet model
-    disparity_map = hitnet_depth(frameL, frameR)
-    color_disparity = draw_disparity(disparity_map)
-    depth_map = hitnet_depth.get_depth()
+    if method == "sgbm":
+
+        grayFrameL = cv2.cvtColor(frameL.copy(), cv2.COLOR_BGR2GRAY)
+        grayFrameR = cv2.cvtColor(frameR.copy(), cv2.COLOR_BGR2GRAY)
+
+        disparityMap = stereo.compute(
+            grayFrameL, grayFrameR).astype(np.float32)/16
+
+        # Use StereoSGBM to compute right disparity as well for WLS filtering
+        right_matcher = cv2.ximgproc.createRightMatcher(stereo)
+        disparityMap_right = right_matcher.compute(
+            grayFrameR, grayFrameL).astype(np.float32)/16
+
+        # Apply WLS filtering
+        filtered_disp = wls_filter.filter(
+            disparityMap, grayFrameL, None, disparityMap_right)
+
+        # Normalize the filtered disparity map
+        filtered_disp_vis = cv2.normalize(
+            src=filtered_disp, dst=None, beta=255, alpha=0, norm_type=cv2.NORM_MINMAX)
+        # Convert to 8-bit image (necessary for equalization and color mapping)
+        filtered_disp_vis = filtered_disp_vis.astype(np.uint8)
+        # Apply histogram equalization to improve contrast
+        filtered_disp_vis = cv2.equalizeHist(filtered_disp_vis)
+
+        # Apply a color map to the equalized filtered disparity map
+        filtered_disp_color = cv2.applyColorMap(
+            filtered_disp_vis, cv2.COLORMAP_MAGMA)
+
+        disparityMap_vis = cv2.normalize(
+            src=disparityMap, dst=None, beta=255, alpha=0, norm_type=cv2.NORM_MINMAX)
+        disparityMap_vis = cv2.equalizeHist(disparityMap_vis.astype(np.uint8))
+        disparity_color = cv2.applyColorMap(
+            disparityMap_vis, cv2.COLORMAP_MAGMA)
+
+        color_disparity = filtered_disp_color.copy()
+
+        depth_map = disparity_to_depth(filtered_disp)
+
+    else:
+        # Get the depth map from the Hitnet model
+        disparity_map = hitnet_depth(frameL, frameR)
+        color_disparity = draw_disparity(disparity_map)
+        depth_map = hitnet_depth.get_depth()
 
     # End time
     end_time = time.time()
@@ -209,24 +277,28 @@ def overlay_depth_on_detections(depth_frame, disparity_map, detections):
 
     return depth_frame, updated_detections
 
+
 def object_detection_mouse_callback(event, x, y, flags, param):
     # Check for left mouse button click event
     if event == cv2.EVENT_LBUTTONDOWN:
         print(f"Clicked coordinates: x = {x}, y = {y}")
 
+
 def generate_grasping_overlay(frame, total_objects, current_object, status, coords, object_class):
 
     overlay_frame = frame.copy()
-    
+
     # Define the list of texts and their positions
     info_texts = [
         (f"Objects to grasp: {total_objects}", (10, frame.shape[0] - 150)),
-        (f"Grasping object {current_object} of {total_objects}", (10, frame.shape[0] - 120)),
+        (f"Grasping object {current_object} of {total_objects}",
+         (10, frame.shape[0] - 120)),
         (status, (10, frame.shape[0] - 90)),
-        (f"Coord: ({coords[0]:.2f}, {coords[1]:.2f})", (10, frame.shape[0] - 60)),
-        (f"Grasping {object_class}",(10, frame.shape[0] - 30))
+        (f"Coord: ({coords[0]:.2f}, {coords[1]:.2f})",
+         (10, frame.shape[0] - 60)),
+        (f"Grasping {object_class}", (10, frame.shape[0] - 30))
     ]
-    
+
     # Loop over each text and its position, then overlay it on the frame
     for text, position in info_texts:
         cv2.putText(overlay_frame, text, position,
@@ -234,11 +306,13 @@ def generate_grasping_overlay(frame, total_objects, current_object, status, coor
 
     return overlay_frame
 
-def aruco_detection(frame,aruco_dictionary,aruco_parameters):
+
+def aruco_detection(frame, aruco_dictionary, aruco_parameters):
 
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-    corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(gray, aruco_dictionary, parameters=aruco_parameters)
+    corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(
+        gray, aruco_dictionary, parameters=aruco_parameters)
 
     center_coordinates = []
 
@@ -247,14 +321,47 @@ def aruco_detection(frame,aruco_dictionary,aruco_parameters):
         cv2.aruco.drawDetectedMarkers(frame, corners, ids)
 
         for corner in corners:
-            x_center = int((corner[0][0][0] + corner[0][1][0] + corner[0][2][0] + corner[0][3][0]) / 4)
-            y_center = int((corner[0][0][1] + corner[0][1][1] + corner[0][2][1] + corner[0][3][1]) / 4)
-            
-            center_coordinates.append((x_center,y_center))
+            x_center = int((corner[0][0][0] + corner[0][1]
+                           [0] + corner[0][2][0] + corner[0][3][0]) / 4)
+            y_center = int((corner[0][0][1] + corner[0][1]
+                           [1] + corner[0][2][1] + corner[0][3][1]) / 4)
+
+            center_coordinates.append((x_center, y_center))
             # Drawing the center point
-            cv2.circle(frame, (x_center, y_center), 10, (0, 255, 0), -1)  # 5 is the radius, (0, 255, 0) is the color
+            # 5 is the radius, (0, 255, 0) is the color
+            cv2.circle(frame, (x_center, y_center), 10, (0, 255, 0), -1)
 
     return frame, center_coordinates
+
+# HOT FIX
+
+def check_black_scene(disp_map_img):
+
+    # Assuming 'filtered_disp_vis' is the normalized disparity map
+    # Compute the histogram
+    hist = cv2.calcHist([disp_map_img], [0], None, [256], [0, 256])
+
+    # Threshold for black (can be adjusted)
+    black_threshold = 5
+
+    # Count black pixels
+    black_pixels = hist[0:black_threshold+1].sum()
+
+    # Calculate the percentage of black pixels
+    total_pixels = disp_map_img.size
+    black_percentage = (black_pixels / total_pixels) * 100
+
+    print(f"Percentage of black pixels: {black_percentage}%")
+
+    # Decision
+    if black_percentage > 90:  # This threshold can be adjusted
+        print("The image is predominantly black.")
+        return True
+    else:
+        print("The image is not predominantly black.")
+        return False
+
+    return
 
 
 if __name__ == '__main__':
@@ -272,6 +379,9 @@ if __name__ == '__main__':
     print("Init Aruco")
     # Load the predefined dictionary
     aruco_dictionary = cv2.aruco.Dictionary_get(cv2.aruco.DICT_6X6_250)
+
+    print("Init SGBM")
+    stereo_sgbm, wls_filter = init_sgbm()
 
     # Initialize the detector parameters using default values
     aruco_parameters = cv2.aruco.DetectorParameters_create()
@@ -344,9 +454,22 @@ if __name__ == '__main__':
                 object_detection_model, frameL)
 
         # DEPTH ESTIMATION ONLY
+        # HOT FIX
         elif key == ord('d'):
+
             frameR_with_detections, disparity_map = depth_estimation(
-                hitnet_depth, frameL, frameR)
+                hitnet_depth, stereo_sgbm, wls_filter, frameL, frameR)
+
+            # check_bug = True
+            # count_black = 0
+            # while check_bug:
+            #     frameR_with_detections, disparity_map = depth_estimation(
+            #         hitnet_depth, stereo_sgbm, wls_filter, frameL, frameR)
+            #     count_black += 1
+            #     check_bug = check_black_scene(disparity_map)
+            #     if count_black > 10:
+            #         check_bug = False
+
             cv2.setMouseCallback(
                 window_name, depth_estimation_mouse_callback, param=(combined, disparity_map))
 
@@ -355,7 +478,7 @@ if __name__ == '__main__':
             frameL_with_detections, object_detection_result = object_detection(
                 object_detection_model, frameL)
             frameR_with_detections, disparity_map = depth_estimation(
-                hitnet_depth, frameL, frameR)
+                hitnet_depth, stereo_sgbm, wls_filter, frameL, frameR)
             cv2.setMouseCallback(
                 window_name, depth_estimation_mouse_callback, param=(combined, disparity_map))
 
@@ -373,15 +496,19 @@ if __name__ == '__main__':
         object_detection_frame, object_detection_result = object_detection(
             object_detection_model, frameL)
         depth_estimation_frame, disparity_map = depth_estimation(
-            hitnet_depth, frameL, frameR)
+            hitnet_depth, stereo_sgbm, wls_filter, frameL, frameR)
 
         # Overlay the depth on detections
         depth_estimation_frame, object_detection_result = overlay_depth_on_detections(
             depth_estimation_frame, disparity_map, object_detection_result)
 
         # Aruco
-        aruco_result,aruco_coord = aruco_detection(object_detection_frame, aruco_dictionary, aruco_parameters)
-        cobot.set_aruco_coord(aruco_coord)
+        aruco_result, aruco_coord = aruco_detection(
+            object_detection_frame, aruco_dictionary, aruco_parameters)
+            
+        if len(aruco_coord) == 2:
+            cobot.set_aruco_coord(aruco_coord)
+
         print(f"aruco_coord: {aruco_coord}")
 
         combined = np.vstack((aruco_result, depth_estimation_frame))
@@ -395,15 +522,16 @@ if __name__ == '__main__':
 
         for index, detection in enumerate(object_detection_result):
 
-            print("Grasping object {} of {} : {}".format(index+1, total_objects, detection[0]))
+            print("Grasping object {} of {} : {}".format(
+                index+1, total_objects, detection[0]))
 
             status = "Grasping"
             overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
+                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
             combined = np.vstack((overlay, depth_estimation_frame))
 
             cv2.imshow(window_name, combined)
-            cv2.waitKey(1) 
+            cv2.waitKey(1)
 
             # Grasp the object using the robot
             cobot.grab_object(detection[1], detection[2], detection[3])
@@ -411,11 +539,11 @@ if __name__ == '__main__':
             # Update the status to "Done" after grasping
             status = "Putting in Bin"
             overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
+                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
             combined = np.vstack((overlay, depth_estimation_frame))
 
             cv2.imshow(window_name, combined)
-            cv2.waitKey(1) 
+            cv2.waitKey(1)
 
             if detection[0] == "cat":
                 cobot.put_off(position="box_left_middle")
@@ -429,9 +557,9 @@ if __name__ == '__main__':
             # Update the status to "Done" after grasping
             status = "Done"
             overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
+                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
             combined = np.vstack((overlay, depth_estimation_frame))
             cv2.imshow(window_name, combined)
-            cv2.waitKey(1) 
+            cv2.waitKey(1)
 
         cobot.init()
