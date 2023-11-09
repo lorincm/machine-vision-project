@@ -48,8 +48,37 @@ def init_sgbm():
     wls_filter.setSigmaColor(sigma)
     return stereo, wls_filter
 
-
 def object_detection(object_detection_model, frameL):
+
+    results = object_detection_model(frameL)
+    detection_result = []
+    for r in results:
+        boxes = r.boxes.cpu().numpy()
+
+        im_array = r.plot()  # plot a BGR numpy array of 
+        im = Image.fromarray(im_array[..., ::-1]) 
+        
+        im.save('results.jpg')
+        image = cv2.imread('./results.jpg')
+
+        #draw image
+        for box in boxes:
+            xy = box.xywh                    
+            x = int(xy[0][0])
+            y = int(xy[0][1])
+
+            
+            image = cv2.circle(image, (x,y), radius=10, color=(0, 0, 255), thickness=-1)
+            cv2.imwrite('results.jpg', image)
+            detection_result.append([object_detection_model.names[box.cls[0]], x, y])
+    
+
+
+    frameL_with_detections = cv2.imread('./results.jpg')
+
+    return frameL_with_detections, detection_result #label, x, y, z
+
+def object_detection(object_detection_model, frameL, aruco_coord=[(879, 936), (1289, 534)]):
 
     COCO_INSTANCE_CATEGORY_NAMES = [
         '__background__', 'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus',
@@ -92,10 +121,15 @@ def object_detection(object_detection_model, frameL):
             print(
                 f"Unexpected label index {label_index}. Defaulting to 'unknown'.")
             label = "unknown"
+        
+
 
         if label in ["apple", "cat", "clock"] and score > 0.5:
             x_center = (box[0] + box[2]) / 2
             y_center = (box[1] + box[3]) / 2
+
+            if (x_center >= aruco_coord[0][0] and x_center <= aruco_coord[1][0] and y_center >= aruco_coord[0][1] and y_center <= aruco_coord[1][1]):
+                continue
 
             cv2.rectangle(frameL_with_detections, (int(box[0]), int(
                 box[1])), (int(box[2]), int(box[3])), (0, 0, 255), 2)
@@ -372,6 +406,7 @@ if __name__ == '__main__':
     print("Init Object Detection Model")
     object_detection_model = fasterrcnn_resnet50_fpn(weights='DEFAULT')
     object_detection_model.eval()
+    # object_detection_model = YOLO('/Users/napat/Documents/GitHub/machine-vision-project/main_project/yolov8x-oiv7.pt')
 
     print("Init COBOT")
     cobot = Cobot("/dev/tty.usbserial-54790107521")
@@ -530,46 +565,49 @@ if __name__ == '__main__':
         # Number of objects to grasp
         total_objects = len(object_detection_result)
 
-        for index, detection in enumerate(object_detection_result):
+        total_objects = 1
+        index=0
 
-            print("Grasping object {} of {} : {}".format(
-                index+1, total_objects, detection[0]))
+        while (total_objects != 0):
+                    detection = object_detection_result[0]
+                    print(f"Grasping object {detection[0]}")
+                    status = "Grasping"
+                    overlay = generate_grasping_overlay(
+                        object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
 
-            status = "Grasping"
-            overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
-            combined = np.vstack((overlay, depth_estimation_frame))
+                    combined = np.vstack((overlay, depth_estimation_frame))
+                    cv2.imshow(window_name, combined)
+                    cv2.waitKey(1) 
 
-            cv2.imshow(window_name, combined)
-            cv2.waitKey(1)
+                    cobot.grab_object(detection[1], detection[2])
 
-            # Grasp the object using the robot
-            cobot.grab_object(detection[1], detection[2], detection[3])
+                    status = "Putting in Bin"
+                    overlay = generate_grasping_overlay(
+                        object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
+                    combined = np.vstack((overlay, depth_estimation_frame))
 
-            # Update the status to "Done" after grasping
-            status = "Putting in Bin"
-            overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
-            combined = np.vstack((overlay, depth_estimation_frame))
+                    cv2.imshow(window_name, combined)
+                    cv2.waitKey(1) 
+                    
+                    if detection[0] == "cat":
+                        cobot.put_off(position="box_left_back")
+                    elif detection[0] == "clock":
+                        cobot.put_off(position="box_right_middle")
+                    elif detection[0] == "apple":
+                        cobot.put_off(position="box_right_back")
+                    else:
+                        cobot.put_off(position="box_left_middle")
 
-            cv2.imshow(window_name, combined)
-            cv2.waitKey(1)
+                    status = "Done"
+                    overlay = generate_grasping_overlay(
+                        object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]),detection[0])
+                    combined = np.vstack((overlay, depth_estimation_frame))
+                    cv2.imshow(window_name, combined)
+                    cv2.waitKey(1) 
 
-            if detection[0] == "cat":
-                cobot.put_off(position="box_left_middle")
-            elif detection[0] == "clock":
-                cobot.put_off(position="box_right_middle")
-            elif detection[0] == "apple":
-                cobot.put_off(position="box_right_back")
-            else:
-                cobot.put_off(position="box_left_back")
-
-            # Update the status to "Done" after grasping
-            status = "Done"
-            overlay = generate_grasping_overlay(
-                object_detection_frame, total_objects, index+1, status, (detection[1], detection[2]), detection[0])
-            combined = np.vstack((overlay, depth_estimation_frame))
-            cv2.imshow(window_name, combined)
-            cv2.waitKey(1)
+                    frameL, frameR = stereo_camera.get_frames()
+                    object_detection_frame, object_detection_result = object_detection(
+                    object_detection_model, frameL)
+                    total_objects = len(object_detection_result)
 
         cobot.init()

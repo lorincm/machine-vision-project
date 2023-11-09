@@ -29,8 +29,8 @@ class Cobot():
                  [120, 170, 175, -180, 0, 0]],   # down
 
             "box_left_back":
-                [[200, 120, 230, -180, 0, 0],      # up
-                 [215, 150, 220, -150, 0, -60]],   # down
+                [[215, 120, 250, -180, 0, 0],      # up
+                 [225, 150, 220, -150, 0, -60]],   # down
 
             "box_right_middle":
                 [[120, -150, 240, -180, 0, 0],      # up
@@ -57,6 +57,7 @@ class Cobot():
     def init(self):
         self.mc.send_angles([0, 0, 0, 0, 0, 0], 40)
         time.sleep(3)
+        self.pump_off()
 
     def grasp(self,position):
         self.pump_on()
@@ -107,7 +108,7 @@ class Cobot():
         return x_rob, y_rob
 
 
-    def grab_object(self,x_camera,y_camera,z):
+    def grab_object(self,x_camera,y_camera):
 
         x_robot,y_robot = self.map_camera_to_robot(x_camera,y_camera)
 
